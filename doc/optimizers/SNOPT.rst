@@ -33,6 +33,85 @@ However, the `snopt` binding module cannot be included as part of the package du
 
 If you are installing via conda and would like to use SNOPT, you will need to build the `snopt` binding module on your own, and inform `pyoptsparse` that it should use that library.
 
+**Automated build tool (recommended)**
+
+pyoptsparse includes a build tool that automates the process of building the SNOPT module. You can either build from source or link against a precompiled library.
+
+**Option 1: Build from source**
+
+Simply provide the path to your SNOPT source directory:
+
+.. code-block:: bash
+
+    python -m pyoptsparse.build_snopt_module /path/to/snopt/src
+
+Or using the console script:
+
+.. code-block:: bash
+
+    pyoptsparse-build-snopt /path/to/snopt/src
+
+This will:
+
+1. Automatically download required build files from GitHub (if not present in your installation)
+2. Copy your SNOPT source files to a temporary build directory
+3. Build the SNOPT Python extension module using meson (which uses f2py internally)
+4. Install it directly into the pyoptsparse package directory (``site-packages/pyoptsparse/pySNOPT/``)
+5. **No environment variable configuration needed!** SNOPT will be automatically detected.
+
+.. note::
+   The build tool requires ``meson`` and ``ninja`` to be installed. If not already present, install them with:
+
+   .. code-block:: bash
+
+       pip install meson ninja
+
+.. note::
+   For conda installations, the required build files (f2py interface, helper scripts) are automatically
+   downloaded from the pyoptsparse GitHub repository. An internet connection is required for the first build.
+
+**Option 2: Link against precompiled library**
+
+If you have a precompiled SNOPT library, you can link against it instead:
+
+- Linux: ``libsnopt7.so``
+- macOS: ``libsnopt7.dylib``
+- Windows: ``snopt7.dll``
+
+.. code-block:: bash
+
+    # Linux/macOS
+    python -m pyoptsparse.build_snopt_module --snopt-lib /path/to/libsnopt7.so
+
+    # Windows
+    python -m pyoptsparse.build_snopt_module --snopt-lib C:\path\to\snopt7.dll
+
+This creates a lightweight Python wrapper that links against your precompiled library, which is faster than compiling from source. This approach is particularly useful when using SNOPT libraries from conda or other package managers.
+
+.. note::
+   When using ``--snopt-lib``, you only need ``meson`` and ``ninja`` installed. No Fortran compiler is required since the library is already compiled.
+
+To test your installation:
+
+.. code-block:: bash
+
+    python -c "from pyoptsparse import SNOPT; print('SNOPT loaded successfully!')"
+
+You can specify a custom output directory with ``--output`` (this will require setting ``PYOPTSPARSE_IMPORT_SNOPT_FROM``):
+
+.. code-block:: bash
+
+    python -m pyoptsparse.build_snopt_module /path/to/snopt/src --output ~/my-snopt
+    export PYOPTSPARSE_IMPORT_SNOPT_FROM=~/my-snopt/
+
+For more options, run:
+
+.. code-block:: bash
+
+    python -m pyoptsparse.build_snopt_module --help
+
+**Manual build**
+
 Suppose you have built the binding file, producing ``snopt.cpython-310.so``, living in the folder ``~/snopt-bind``.
 
 To use this module, set the environment variable, ``PYOPTSPARSE_IMPORT_SNOPT_FROM``, e.g.:

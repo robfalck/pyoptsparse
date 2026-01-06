@@ -124,9 +124,13 @@ if __name__ == "__main__":
         packages=setuptools.find_packages(where="."),
         package_data={
             "": ["*.so", "*.lib", "*.pyd", "*.pdb", "*.dylib", "assets/*", "LICENSE"],
+            "pyoptsparse.pySNOPT": ["source/f2py/*.pyf", "source/*.f"],
         },
         python_requires=">=3.9",
         entry_points={
+            "console_scripts": [
+                "pyoptsparse-build-snopt = pyoptsparse.build_snopt_module:main",
+            ],
             "gui_scripts": [
                 "optview = pyoptsparse.postprocessing.OptView:main",
                 "optview_dash = pyoptsparse.postprocessing.OptView_dash:main",
