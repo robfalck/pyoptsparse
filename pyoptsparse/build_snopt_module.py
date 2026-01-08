@@ -258,7 +258,7 @@ message('Building SNOPT module linked against precompiled library: {snopt_lib_pa
 """
     else:
         # Compile from source
-        meson_content = f"""project(
+        meson_content = """project(
   'snopt-module',
   'c', 'fortran',
   meson_version: '>= 0.60',
@@ -537,10 +537,10 @@ Examples:
     print("pyoptsparse SNOPT Module Builder")
     print("="*70)
     if args.snopt_lib:
-        print(f"Build mode: Link against precompiled library")
+        print("Build mode: Link against precompiled library")
         print(f"SNOPT library: {args.snopt_lib}")
     else:
-        print(f"Build mode: Compile from source")
+        print("Build mode: Compile from source")
         print(f"SNOPT source: {args.snopt_source}")
     print(f"Output directory: {args.output}")
     print(f"Platform: {platform.system()} {platform.machine()}")
