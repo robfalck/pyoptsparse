@@ -31,3 +31,6 @@ pyoptsparse/_version.py
 *.pyd
 
 .DS_Store
+
+# pixi environments
+.pixi/

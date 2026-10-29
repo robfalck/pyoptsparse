@@ -1,0 +1,65 @@
+[workspace]
+name = "pyoptsparse"
+description = "Python package for formulating and solving nonlinear constrained optimization problems"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
+
+# Build and runtime dependencies from pyproject.toml, taken from conda-forge.
+# pyoptsparse itself is built from source with the `install` task, since it
+# needs the C/C++/Fortran toolchains from this environment.
+[dependencies]
+python = ">=3.11,<3.14"
+# runtime
+packaging = "*"
+sqlitedict = ">=1.6"
+numpy = ">=2.0"
+scipy = ">=1.11"
+mdolab-baseclasses = ">=1.3.1"
+# build
+meson = ">=1.3.2"
+meson-python = "*"
+ninja = "*"
+swig = "*"
+setuptools_scm = ">=8.2"
+pkg-config = "*"
+pip = "*"
+c-compiler = "*"
+cxx-compiler = "*"
+fortran-compiler = "*"
+
+[tasks]
+install = { cmd = "pip install --no-build-isolation --no-deps .", description = "Build and install pyoptsparse into the environment" }
+
+# On Windows the C/C++ side is MSVC (cl/link) while conda's flang activation sets
+# AR=llvm-ar, whose archives MSVC's linker rejects (LNK1107). Use MSVC's lib instead.
+[target.win-64.tasks]
+install = { cmd = "pip install --no-build-isolation --no-deps .", env = { AR = "lib" }, description = "Build and install pyoptsparse into the environment" }
+
+[feature.test.dependencies]
+testflo = ">=1.4.5"
+parameterized = "*"
+egobox = ">=0.38.0"
+cyipopt = "*"
+
+[feature.test.tasks]
+test = { cmd = "testflo -i --pre_announce -v -n 1 .", cwd = "tests", description = "Run the test suite (run `pixi run install` first)" }
+
+[feature.uno.pypi-dependencies]
+unopy = "*"
+
+[feature.optview.dependencies]
+dash = "*"
+plotly = "*"
+matplotlib = "*"
+
+[feature.docs.dependencies]
+sphinx = "*"
+sphinx_rtd_theme = "*"
+
+[feature.docs.tasks]
+docs = { cmd = "sphinx-build -b html . _build/html", cwd = "doc", description = "Build the HTML documentation" }
+
+[environments]
+default = { features = ["test", "optview"], solve-group = "default" }
+uno = { features = ["test", "optview", "uno"], solve-group = "default" }
+docs = { features = ["docs"], solve-group = "default" }
