@@ -81,7 +81,6 @@ class TestCodec(unittest.TestCase):
         for obj in [None, True, False, 0, -1, 2**63 - 1, -(2**63), 1.5, -0.0, math.inf, -math.inf, 1 + 2j, "", "héllo"]:
             with self.subTest(obj=obj):
                 self.assertRoundTrip(obj)
-        self.assertRoundTrip(b"\x00\x80bytes")
         self.assertTrue(math.isnan(roundtrip(math.nan)))
         self.assertEqual(math.copysign(1.0, roundtrip(-0.0)), -1.0)
 
@@ -140,14 +139,22 @@ class TestCodec(unittest.TestCase):
 
     def test_csr(self):
         dense = np.array([[1.0, 0.0, 2.0], [0.0, 0.0, 3.0]])
-        for cls in (csr_matrix, csr_array):
-            with self.subTest(cls=cls):
-                out = roundtrip(cls(dense))
-                self.assertIs(type(out), cls)
-                assert_array_equal(out.toarray(), dense)
+        out = roundtrip(csr_matrix(dense))
+        self.assertIs(type(out), csr_matrix)
+        assert_array_equal(out.toarray(), dense)
 
     def test_unsupported_types(self):
-        for obj in [lambda x: x, {1, 2}, object(), np.array([len], dtype=object), np.zeros(2, dtype="f8,i4"), 2**64]:
+        unsupported = [
+            lambda x: x,
+            {1, 2},
+            object(),
+            b"bytes",
+            np.array([len], dtype=object),
+            np.zeros(2, dtype="f8,i4"),
+            csr_array(np.eye(2)),
+            2**64,
+        ]
+        for obj in unsupported:
             with self.subTest(obj=obj), self.assertRaises(TypeError):
                 encode(obj)
 
@@ -254,7 +261,7 @@ class TestSqliteDict(unittest.TestCase):
         db["kept"] = 1
         db.commit()
         db["dropped"] = 2
-        db._conn.rollback()
+        db._db.rollback()
         db.close()
         with SqliteDict(self.fileName) as db:
             self.assertEqual(list(db), ["kept"])

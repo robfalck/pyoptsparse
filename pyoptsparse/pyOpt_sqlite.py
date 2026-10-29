@@ -24,7 +24,7 @@ from typing import Any
 
 # External modules
 import numpy as np
-from scipy.sparse import csr_array, csr_matrix
+from scipy.sparse import csr_matrix
 
 __all__ = ["SqliteDict", "encode", "decode"]
 
@@ -34,13 +34,11 @@ MAGIC = b"PYOS\x01"
 
 # Type tags
 _NONE = b"N"
-_TRUE = b"T"
-_FALSE = b"F"
+_BOOL = b"B"
 _INT = b"i"
 _FLOAT = b"f"
 _COMPLEX = b"c"
 _STR = b"s"
-_BYTES = b"b"
 _LIST = b"l"
 _TUPLE = b"t"
 _DICT = b"d"
@@ -81,25 +79,10 @@ def _object_classes() -> dict[str, type]:
 
 def encode(obj: Any) -> bytes:
     """
-    Serialize ``obj`` into the pickle-free binary format.
-
-    Parameters
-    ----------
-    obj
-        The value to serialize. Supported types are ``None``, ``bool``, ``int``,
-        ``float``, ``complex``, ``str``, ``bytes``, ``list``, ``tuple``, ``dict``,
-        numpy arrays and scalars, scipy CSR matrices, and the pyOptSparse
-        ``Optimization``, ``Variable``, ``Constraint`` and ``Objective`` classes.
-
-    Returns
-    -------
-    bytes
-        The encoded value.
-
-    Raises
-    ------
-    TypeError
-        If ``obj`` contains a value of an unsupported type.
+    Serialize ``obj`` without pickle. Supported types are ``None``, ``bool``, ``int``,
+    ``float``, ``complex``, ``str``, ``list``, ``tuple``, ``dict``, numpy arrays and
+    scalars, ``scipy.sparse.csr_matrix``, and the pyOptSparse ``Optimization``,
+    ``Variable``, ``Constraint`` and ``Objective`` classes. Anything else raises ``TypeError``.
     """
     buf = bytearray(MAGIC)
     _encode(obj, buf)
@@ -114,10 +97,8 @@ def _write_bytes(data: bytes, buf: bytearray) -> None:
 def _encode(obj: Any, buf: bytearray) -> None:
     if obj is None:
         buf += _NONE
-    elif obj is True:
-        buf += _TRUE
-    elif obj is False:
-        buf += _FALSE
+    elif isinstance(obj, bool):
+        buf += _BOOL + (b"\x01" if obj else b"\x00")
     elif isinstance(obj, np.generic):
         # numpy scalars are stored as the equivalent Python value. Extended-precision
         # types (longdouble on most platforms) have no Python equivalent and are rejected.
@@ -137,9 +118,6 @@ def _encode(obj: Any, buf: bytearray) -> None:
     elif isinstance(obj, str):
         buf += _STR
         _write_bytes(obj.encode("utf-8"), buf)
-    elif isinstance(obj, bytes):
-        buf += _BYTES
-        _write_bytes(obj, buf)
     elif isinstance(obj, list | tuple):
         buf += _LIST if isinstance(obj, list) else _TUPLE
         buf += _U32.pack(len(obj))
@@ -161,8 +139,8 @@ def _encode(obj: Any, buf: bytearray) -> None:
     elif isinstance(obj, np.ndarray):
         buf += _NDARRAY
         _encode_array(obj, buf)
-    elif isinstance(obj, csr_matrix | csr_array):
-        buf += _CSR + (b"a" if isinstance(obj, csr_array) else b"m")
+    elif isinstance(obj, csr_matrix):
+        buf += _CSR
         buf += _U32.pack(obj.shape[0]) + _U32.pack(obj.shape[1])
         for arr in (obj.data, obj.indices, obj.indptr):
             _encode_array(arr, buf)
@@ -221,26 +199,9 @@ class _Reader:
 
 def decode(blob: bytes, key: str | None = None) -> Any:
     """
-    Deserialize a value written by :func:`encode`, or by ``sqlitedict``.
-
-    Parameters
-    ----------
-    blob : bytes
-        The stored value.
-    key : str, optional
-        The key the value was stored under, used only in error messages.
-
-    Returns
-    -------
-    Any
-        The decoded value.
-
-    Raises
-    ------
-    ValueError
-        If a blob in the new format is truncated or corrupt.
-    pickle.UnpicklingError
-        If a legacy (pickled) blob references a class outside the allowlist.
+    Deserialize a value written by :func:`encode`, or by ``sqlitedict``. Corrupt data
+    raises ``ValueError`` (naming ``key`` if given), and a legacy pickle that references a
+    class outside the allowlist raises ``pickle.UnpicklingError``.
     """
     blob = bytes(blob)
     if not blob.startswith(MAGIC):
@@ -262,10 +223,8 @@ def _decode(r: _Reader) -> Any:
     tag = bytes(r.read(1))
     if tag == _NONE:
         return None
-    if tag == _TRUE:
-        return True
-    if tag == _FALSE:
-        return False
+    if tag == _BOOL:
+        return bytes(r.read(1)) != b"\x00"
     if tag == _INT:
         return _I64.unpack(r.read(8))[0]
     if tag == _FLOAT:
@@ -274,8 +233,6 @@ def _decode(r: _Reader) -> Any:
         return complex(*_C128.unpack(r.read(16)))
     if tag == _STR:
         return r.blob().decode("utf-8")
-    if tag == _BYTES:
-        return r.blob()
     if tag in (_LIST, _TUPLE):
         items = [_decode(r) for _ in range(r.u32())]
         return items if tag == _LIST else tuple(items)
@@ -298,11 +255,9 @@ def _decode(r: _Reader) -> Any:
             flat[i] = _decode(r)
         return arr
     if tag == _CSR:
-        kind = bytes(r.read(1))
         shape = (r.u32(), r.u32())
         data, indices, indptr = (_decode_array(r) for _ in range(3))
-        cls = csr_array if kind == b"a" else csr_matrix
-        return cls((data, indices, indptr), shape=shape)
+        return csr_matrix((data, indices, indptr), shape=shape)
     if tag == _OBJECT:
         name = r.blob().decode("utf-8")
         classes = _object_classes()
@@ -383,15 +338,9 @@ class SqliteDict(MutableMapping):
             raise ValueError(f"Invalid table name '{tablename}'")
         self.filename = filename
         self.tablename = tablename
-        self._conn: sqlite3.Connection | None = sqlite3.connect(filename)
-        self._conn.execute(f'CREATE TABLE IF NOT EXISTS "{tablename}" (key TEXT PRIMARY KEY, value BLOB)')
-        self._conn.commit()
-
-    @property
-    def _db(self) -> sqlite3.Connection:
-        if self._conn is None:
-            raise RuntimeError(f"SqliteDict for '{self.filename}' is closed")
-        return self._conn
+        self._db = sqlite3.connect(filename)
+        self._db.execute(f'CREATE TABLE IF NOT EXISTS "{tablename}" (key TEXT PRIMARY KEY, value BLOB)')
+        self._db.commit()
 
     def __getitem__(self, key: str) -> Any:
         row = self._db.execute(f'SELECT value FROM "{self.tablename}" WHERE key = ?', (key,)).fetchone()
@@ -426,10 +375,6 @@ class SqliteDict(MutableMapping):
         rows = self._db.execute(f'SELECT key, value FROM "{self.tablename}" ORDER BY rowid').fetchall()
         return [(key, decode(value, key)) for key, value in rows]
 
-    def values(self) -> list[Any]:
-        """Return all values in insertion order, using a single query."""
-        return [value for _, value in self.items()]
-
     def commit(self) -> None:
         """Write pending changes to disk."""
         self._db.commit()
@@ -437,20 +382,12 @@ class SqliteDict(MutableMapping):
     sync = commit
 
     def close(self) -> None:
-        """Commit pending changes and close the database. Safe to call more than once."""
-        if self._conn is not None:
-            self._conn.commit()
-            self._conn.close()
-            self._conn = None
+        """Commit pending changes and close the database."""
+        self._db.commit()
+        self._db.close()
 
     def __enter__(self) -> "SqliteDict":
         return self
 
     def __exit__(self, *exc) -> None:
         self.close()
-
-    def __del__(self) -> None:
-        try:
-            self.close()
-        except Exception:
-            pass
