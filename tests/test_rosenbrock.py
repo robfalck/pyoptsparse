@@ -7,10 +7,10 @@ import unittest
 # External modules
 import numpy as np
 from parameterized import parameterized
-from sqlitedict import SqliteDict
 
 # First party modules
 from pyoptsparse import History, Optimization
+from pyoptsparse.pyOpt_sqlite import SqliteDict
 from pyoptsparse.testing import OptTest
 
 

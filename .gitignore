@@ -10,6 +10,7 @@ doc/_build
 *.out
 *.f
 *.hst
+!tests/data/*.hst
 *.gz
 *.c
 *.cpp

@@ -26,7 +26,7 @@ version = get_version(root="..", relative_to=__file__, version_file="../pyoptspa
 # -- General configuration ---------------------------------------------------
 
 # mock import for autodoc
-autodoc_mock_imports = ["baseclasses", "sqlitedict"]
+autodoc_mock_imports = ["baseclasses"]
 
 # logo
 html_logo = "_static/pyOptSparse_logo.svg"

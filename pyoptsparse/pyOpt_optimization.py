@@ -10,12 +10,12 @@ import warnings
 import numpy as np
 import numpy.typing as npt
 from scipy.sparse import coo_matrix
-from sqlitedict import SqliteDict
 
 # Local modules
 from .pyOpt_MPI import MPI
 from .pyOpt_constraint import Constraint
 from .pyOpt_objective import Objective
+from .pyOpt_sqlite import SqliteDict
 from .pyOpt_types import ArrayType, Dict1DType, Dict2DType, NumpyType
 from .pyOpt_utils import (
     ICOL,

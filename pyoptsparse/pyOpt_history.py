@@ -7,10 +7,10 @@ from typing import Any
 # External modules
 import numpy as np
 import numpy.typing as npt
-from sqlitedict import SqliteDict
 
 # Local modules
 from .pyOpt_error import pyOptSparseWarning
+from .pyOpt_sqlite import SqliteDict
 from .pyOpt_utils import EPS
 
 
@@ -46,9 +46,10 @@ class History:
             self.optProb = optProb
         elif self.flag == "r":
             if os.path.exists(fileName):
-                # we cast the db to OrderedDict so we do not have to
-                # manually close the underlying db at the end
-                self.db = OrderedDict(SqliteDict(fileName))
+                # load everything into an OrderedDict and close the
+                # underlying db right away
+                with SqliteDict(fileName) as db:
+                    self.db = OrderedDict(db.items())
             else:
                 raise FileNotFoundError(
                     f"The requested history file {fileName} to open in read-only mode does not exist."
@@ -106,8 +107,10 @@ class History:
         key : str
             The key to be added to the history file
         data
-            The data corresponding to the key. It can be anything as long as it is serializable
-            in `sqlitedict`.
+            The data corresponding to the key. It can be any value supported by
+            :func:`pyoptsparse.pyOpt_sqlite.encode`: ``None``, ``bool``, ``int``, ``float``,
+            ``complex``, ``str``, ``bytes``, lists, tuples and dicts of these, numpy arrays
+            and scalars, scipy CSR matrices, and pyOptSparse problem objects.
         """
         self.db[key] = data
         self.db.commit()

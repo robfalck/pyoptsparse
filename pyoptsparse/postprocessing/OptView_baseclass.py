@@ -11,10 +11,16 @@ import shelve
 
 # External modules
 import numpy as np
-from sqlitedict import SqliteDict
 
 # Local modules
 from ..pyOpt_error import pyOptSparseWarning
+from ..pyOpt_sqlite import SqliteDict
+
+
+def _isSqliteFile(fileName):
+    """Return True if the file starts with the SQLite database header."""
+    with open(fileName, "rb") as f:
+        return f.read(16) == b"SQLite format 3\x00"
 
 
 class OVBaseClass:
@@ -52,10 +58,12 @@ class OVBaseClass:
                 histIndex = "_" + chr(histIndex + ord("A"))
             self.histIndex = histIndex
 
-            try:  # This is the classic method of storing history files
+            # Check for SQLite first: since Python 3.13, shelve can also open SQLite
+            # files (via dbm.sqlite3), which would hide pyOptSparse and OpenMDAO files.
+            if not _isSqliteFile(histFileName):  # This is the classic method of storing history files
                 db = shelve.open(histFileName, "r")
                 OpenMDAO = False
-            except Exception:  # Bare except because error is not in standard Python.
+            else:
                 # If the db has the 'iterations' tag, it's an OpenMDAO db.
                 db = SqliteDict(histFileName, "iterations")
                 OpenMDAO = True
